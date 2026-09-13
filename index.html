@@ -60,9 +60,7 @@
   </button>
   <div class="scratchpad__body" id="scratchpad-body">
     <div class="scratchpad__empty" id="acars-empty">
-      Kein Airframes.io-Key hinterlegt. Ohne Key bleibt das ACARS-Fach leer —
-      unter ⚙ Einstellungen einen kostenlosen Key eintragen, sobald du selbst
-      einen VHF/VDL2-Feed nach airframes.io sendest.
+      Noch keine ACARS-Nachrichten im Umkreis eingetroffen.
     </div>
     <ul class="scratchpad__list" id="acars-list"></ul>
   </div>
@@ -76,13 +74,13 @@
       <button class="iconbtn iconbtn--ghost" id="settings-close" aria-label="Schließen">✕</button>
     </div>
     <label class="sheet__field">
-      <span>Airframes.io API-Key</span>
-      <input type="text" id="input-airframes-key" placeholder="noch keiner hinterlegt" autocomplete="off" spellcheck="false">
+      <span>Airframes.io API-Key (optional)</span>
+      <input type="text" id="input-airframes-key" placeholder="funktioniert auch leer, nur mit niedrigerem Limit" autocomplete="off" spellcheck="false">
     </label>
     <p class="sheet__hint">
-      Key bekommst du kostenlos, sobald du selbst ACARS/VDL2 oder ADS-B an
-      airframes.io bzw. adsb.lol feedest. Ohne eigenen Feed zeigt OpenDeck nur
-      die Live-Positionen von adsb.lol an (kein Key nötig).
+      Ganz ohne Key funktioniert ACARS bereits anonym, nur mit niedrigerem
+      Rate-Limit. Ein kostenloser Feeder-Key (sobald du selbst ACARS/VDL2 oder
+      ADS-B feedest) hebt das Limit an.
     </p>
     <label class="sheet__field">
       <span>Suchradius (NM)</span>

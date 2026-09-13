@@ -162,25 +162,27 @@ async function pollAcars() {
   const emptyEl = document.getElementById("acars-empty");
   const countEl = document.getElementById("acars-count");
 
-  if (!state.airframesKey) {
-    emptyEl.hidden = false;
-    listEl.innerHTML = "";
-    countEl.textContent = "0";
-    return;
-  }
-
   const [lat, lon] = state.center;
   // NOTE: adjust query params against the OpenAPI spec at
   // docs.airframes.io/api-reference if the schema has moved on —
   // this targets /v1/messages filtered to a radius around the map center.
+  // Public endpoints work anonymously (no key) at a lower rate limit;
+  // a free feeder key just raises that limit — see docs.airframes.io/api.
   const url = `https://api.airframes.io/v1/messages?lat=${lat}&lon=${lon}&radius=${state.radiusNm}&limit=30`;
+  const headers = state.airframesKey
+    ? { Authorization: `Bearer ${state.airframesKey}` }
+    : {};
   try {
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${state.airframesKey}` },
-    });
+    const res = await fetch(url, { headers });
+    if (res.status === 429) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = "Rate-Limit erreicht — ohne Key ist das Kontingent knapp. Ein kostenloser Feeder-Key unter ⚙ hebt das Limit an.";
+      return;
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const messages = data.data || data.messages || data || [];
+    emptyEl.textContent = "Noch keine ACARS-Nachrichten im Umkreis eingetroffen.";
     emptyEl.hidden = messages.length > 0;
     countEl.textContent = messages.length;
     listEl.innerHTML = messages

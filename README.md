@@ -12,12 +12,14 @@ direkt über GitHub Pages.
 | Daten     | Quelle                                    | Key nötig? |
 |-----------|--------------------------------------------|------------|
 | Position  | [adsb.lol](https://api.adsb.lol/docs)      | Nein       |
-| ACARS     | [airframes.io](https://docs.airframes.io/api/) | Ja (kostenlos als Feeder) |
+| ACARS     | [airframes.io](https://docs.airframes.io/api/) | Nein — Key optional, hebt nur das Rate-Limit an |
 
-Ohne Airframes-Key läuft die App voll funktionsfähig als reiner ADS-B-Tracker;
-das ACARS-Fach bleibt leer und sagt das auch so.
+Airframes.io lässt öffentliche Endpunkte auch anonym zu, nur mit niedrigerem
+Rate-Limit. OpenDeck läuft also von Anfang an mit beiden Datenquellen ohne
+jeden Key — bei zu vielen Requests kommt im ACARS-Fach ein Hinweis auf das
+Limit, kein Absturz.
 
-### Airframes-Key bekommen
+### Airframes-Key holen (optional, für höheres Limit)
 
 1. Eigenen VHF-ACARS- oder VDL2-Feed einrichten (z. B. `acarsdec` /
    `dumpvdl2` auf einem Raspberry Pi mit RTL-SDR-Dongle) und an
