@@ -1,0 +1,14 @@
+{
+  "name": "OpenDeck — Live Air Traffic",
+  "short_name": "OpenDeck",
+  "description": "Freier Live-Flugverfolger: ADS-B-Positionen und ACARS-Cockpit-Nachrichten.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0e13",
+  "theme_color": "#0a0e13",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

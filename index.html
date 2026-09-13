@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>OpenDeck — Live Air Traffic</title>
+<meta name="theme-color" content="#0a0e13">
+<meta name="description" content="Freier Live-Flugverfolger: ADS-B-Positionen und ACARS-Cockpit-Nachrichten in einer PWA.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="statusbar" id="statusbar">
+  <div class="statusbar__group">
+    <span class="statusbar__mode">OPENDECK</span>
+    <span class="statusbar__divider"></span>
+    <span class="statusbar__label">TRACKED</span>
+    <span class="statusbar__value" id="stat-count">--</span>
+  </div>
+  <div class="statusbar__group statusbar__group--center" id="stat-center">
+    <span class="statusbar__label">SRC</span>
+    <span class="statusbar__value" id="stat-source">adsb.lol</span>
+  </div>
+  <div class="statusbar__group">
+    <button class="iconbtn" id="btn-locate" title="Eigene Position zentrieren" aria-label="Zentrieren">◎</button>
+    <button class="iconbtn" id="btn-settings" title="Einstellungen" aria-label="Einstellungen">⚙</button>
+  </div>
+</header>
+
+<main id="map"></main>
+
+<!-- Aircraft detail readout, styled like an EFIS data block -->
+<section class="datablock" id="datablock" hidden>
+  <div class="datablock__row datablock__row--head">
+    <span class="datablock__callsign" id="db-callsign">—</span>
+    <button class="iconbtn iconbtn--ghost" id="db-close" aria-label="Schließen">✕</button>
+  </div>
+  <div class="datablock__grid">
+    <div><span class="datablock__k">TYPE</span><span class="datablock__v" id="db-type">—</span></div>
+    <div><span class="datablock__k">REG</span><span class="datablock__v" id="db-reg">—</span></div>
+    <div><span class="datablock__k">ALT</span><span class="datablock__v" id="db-alt">—</span></div>
+    <div><span class="datablock__k">GS</span><span class="datablock__v" id="db-gs">—</span></div>
+    <div><span class="datablock__k">HDG</span><span class="datablock__v" id="db-hdg">—</span></div>
+    <div><span class="datablock__k">SQK</span><span class="datablock__v" id="db-sqk">—</span></div>
+  </div>
+</section>
+
+<!-- ACARS scratchpad — pulled up from the bottom, like a DCDU uplink pad -->
+<section class="scratchpad" id="scratchpad">
+  <button class="scratchpad__handle" id="scratchpad-handle" aria-expanded="false">
+    <span class="scratchpad__title">ACARS</span>
+    <span class="scratchpad__count" id="acars-count">0</span>
+    <span class="scratchpad__chevron">▲</span>
+  </button>
+  <div class="scratchpad__body" id="scratchpad-body">
+    <div class="scratchpad__empty" id="acars-empty">
+      Kein Airframes.io-Key hinterlegt. Ohne Key bleibt das ACARS-Fach leer —
+      unter ⚙ Einstellungen einen kostenlosen Key eintragen, sobald du selbst
+      einen VHF/VDL2-Feed nach airframes.io sendest.
+    </div>
+    <ul class="scratchpad__list" id="acars-list"></ul>
+  </div>
+</section>
+
+<!-- Settings sheet -->
+<section class="sheet" id="settings-sheet" hidden>
+  <div class="sheet__panel">
+    <div class="sheet__head">
+      <span>Einstellungen</span>
+      <button class="iconbtn iconbtn--ghost" id="settings-close" aria-label="Schließen">✕</button>
+    </div>
+    <label class="sheet__field">
+      <span>Airframes.io API-Key</span>
+      <input type="text" id="input-airframes-key" placeholder="noch keiner hinterlegt" autocomplete="off" spellcheck="false">
+    </label>
+    <p class="sheet__hint">
+      Key bekommst du kostenlos, sobald du selbst ACARS/VDL2 oder ADS-B an
+      airframes.io bzw. adsb.lol feedest. Ohne eigenen Feed zeigt OpenDeck nur
+      die Live-Positionen von adsb.lol an (kein Key nötig).
+    </p>
+    <label class="sheet__field">
+      <span>Suchradius (NM)</span>
+      <input type="number" id="input-radius" min="10" max="250" step="5">
+    </label>
+    <button class="sheet__save" id="settings-save">Speichern</button>
+  </div>
+</section>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

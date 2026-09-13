@@ -1,0 +1,195 @@
+:root{
+  --bg: #0a0e13;
+  --panel: #10161d;
+  --panel-line: #223040;
+  --text: #d7dee4;
+  --text-dim: #6b7c8c;
+  --own: #35e6a0;      /* own-ship / tracked aircraft, ND green */
+  --route: #ff4fc3;    /* active route / flight plan, ND magenta */
+  --caution: #ffb300;  /* ACARS / caution amber */
+  --info: #4fc3f7;     /* secondary data, ND cyan */
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --sans: 'Inter', system-ui, sans-serif;
+}
+
+*{box-sizing:border-box;}
+html,body{height:100%;margin:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  overflow:hidden;
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* ---- status bar ---- */
+.statusbar{
+  position:fixed; inset:0 0 auto 0;
+  z-index:500;
+  height:44px;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 10px;
+  padding-top:env(safe-area-inset-top);
+  background:linear-gradient(180deg, rgba(10,14,19,.95), rgba(10,14,19,.75));
+  border-bottom:1px solid var(--panel-line);
+  font-family:var(--mono);
+  font-size:12px;
+  letter-spacing:.04em;
+}
+.statusbar__group{display:flex; align-items:center; gap:8px;}
+.statusbar__group--center{position:absolute; left:50%; transform:translateX(-50%);}
+.statusbar__mode{color:var(--own); font-weight:700;}
+.statusbar__divider{width:1px; height:14px; background:var(--panel-line);}
+.statusbar__label{color:var(--text-dim);}
+.statusbar__value{color:var(--text); font-weight:500;}
+
+.iconbtn{
+  width:30px; height:30px;
+  border:1px solid var(--panel-line);
+  background:var(--panel);
+  color:var(--text);
+  border-radius:4px;
+  font-size:15px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+}
+.iconbtn:active{background:var(--panel-line);}
+.iconbtn--ghost{border-color:transparent; background:transparent; width:26px; height:26px;}
+
+/* ---- map ---- */
+#map{
+  position:fixed; inset:0;
+  background:#0a0e13;
+}
+.leaflet-container{background:#0a0e13;}
+
+/* aircraft glyphs drawn as divIcon HTML, see app.js */
+.ac-icon{
+  color:var(--own);
+  filter:drop-shadow(0 0 3px rgba(53,230,160,.5));
+  transition:transform .4s linear;
+}
+.ac-icon--selected{color:var(--route);}
+.ac-icon__label{
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--text);
+  white-space:nowrap;
+  text-shadow:0 0 3px #000, 0 0 3px #000;
+}
+
+/* ---- data block (aircraft detail) ---- */
+.datablock{
+  position:fixed;
+  top:calc(44px + env(safe-area-inset-top) + 10px);
+  right:10px;
+  z-index:400;
+  width:198px;
+  background:rgba(16,22,29,.92);
+  border:1px solid var(--panel-line);
+  border-radius:4px;
+  font-family:var(--mono);
+  font-size:11px;
+  backdrop-filter:blur(4px);
+}
+.datablock__row--head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:7px 6px 7px 10px;
+  border-bottom:1px solid var(--panel-line);
+}
+.datablock__callsign{color:var(--route); font-weight:700; letter-spacing:.03em;}
+.datablock__grid{
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:6px 10px;
+  padding:8px 10px 10px;
+}
+.datablock__grid > div{display:flex; flex-direction:column; gap:1px;}
+.datablock__k{color:var(--text-dim); font-size:9px; letter-spacing:.06em;}
+.datablock__v{color:var(--text); font-size:12px;}
+
+/* ---- ACARS scratchpad ---- */
+.scratchpad{
+  position:fixed; left:0; right:0; bottom:0;
+  z-index:450;
+  background:var(--panel);
+  border-top:1px solid var(--panel-line);
+  border-radius:10px 10px 0 0;
+  max-height:70vh;
+  display:flex; flex-direction:column;
+  transform:translateY(calc(100% - 46px));
+  transition:transform .28s ease;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.scratchpad--open{transform:translateY(0);}
+.scratchpad__handle{
+  all:unset;
+  display:flex; align-items:center; gap:8px;
+  height:46px; padding:0 16px;
+  cursor:pointer;
+  font-family:var(--mono);
+}
+.scratchpad__title{color:var(--caution); font-weight:700; letter-spacing:.06em; font-size:13px;}
+.scratchpad__count{
+  color:var(--bg); background:var(--caution);
+  font-size:11px; font-weight:700;
+  border-radius:8px; padding:1px 7px;
+}
+.scratchpad__chevron{margin-left:auto; color:var(--text-dim); transition:transform .28s ease;}
+.scratchpad--open .scratchpad__chevron{transform:rotate(180deg);}
+.scratchpad__body{overflow-y:auto; padding:0 16px 16px;}
+.scratchpad__empty{
+  color:var(--text-dim); font-size:12.5px; line-height:1.5;
+  padding:6px 0 10px;
+}
+.scratchpad__list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+.scratchpad__msg{
+  border:1px solid var(--panel-line);
+  border-left:2px solid var(--caution);
+  border-radius:3px;
+  padding:8px 10px;
+  font-family:var(--mono);
+  font-size:11.5px;
+  line-height:1.45;
+}
+.scratchpad__msg-head{display:flex; justify-content:space-between; color:var(--text-dim); font-size:10px; margin-bottom:4px;}
+
+/* ---- settings sheet ---- */
+.sheet{
+  position:fixed; inset:0;
+  z-index:600;
+  background:rgba(0,0,0,.55);
+  display:flex; align-items:flex-end;
+}
+.sheet__panel{
+  width:100%;
+  background:var(--panel);
+  border-top:1px solid var(--panel-line);
+  border-radius:10px 10px 0 0;
+  padding:16px 18px calc(20px + env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; gap:14px;
+}
+.sheet__head{
+  display:flex; justify-content:space-between; align-items:center;
+  font-weight:700; font-size:15px;
+}
+.sheet__field{display:flex; flex-direction:column; gap:6px; font-size:12.5px; color:var(--text-dim);}
+.sheet__field input{
+  background:var(--bg);
+  border:1px solid var(--panel-line);
+  color:var(--text);
+  font-family:var(--mono);
+  font-size:13px;
+  padding:9px 10px;
+  border-radius:4px;
+}
+.sheet__hint{color:var(--text-dim); font-size:11.5px; line-height:1.5; margin:-6px 0 0;}
+.sheet__save{
+  background:var(--own); color:#06110c;
+  border:none; border-radius:5px;
+  font-weight:700; font-size:14px;
+  padding:11px; cursor:pointer;
+}
+
+@media (min-width:640px){
+  .datablock{width:220px;}
+}
