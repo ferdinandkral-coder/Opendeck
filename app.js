@@ -10,6 +10,30 @@
 const DEFAULT_CENTER = [48.2082, 16.3738]; // Vienna, fallback only
 const STORE_KEY = "opendeck.settings.v1";
 
+// Any uncaught error becomes visible instead of silently breaking taps —
+// makes future bugs diagnosable from the phone itself.
+let bannerTimer = null;
+function showBanner(msg) {
+  let el = document.getElementById("error-banner");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "error-banner";
+    el.style.cssText =
+      "position:fixed;left:10px;right:10px;top:56px;z-index:900;" +
+      "background:#3a1418;border:1px solid #7a2530;color:#ffb3ba;" +
+      "font:12px var(--mono, monospace);padding:8px 10px;border-radius:6px;";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => (el.hidden = true), 8000);
+}
+window.addEventListener("error", (e) => showBanner(`Fehler: ${e.message}`));
+window.addEventListener("unhandledrejection", (e) =>
+  showBanner(`Fehler: ${e.reason?.message || e.reason}`)
+);
+
 const state = {
   radiusNm: 100,
   airframesKey: "",
@@ -135,27 +159,42 @@ function pruneStale(seenHexes) {
 }
 
 // ---------------- ADS-B polling ----------------
+// Two mirrors with an identical URL schema — if one is unreachable
+// from the browser (CORS, downtime, ...) the other takes over.
+const ADSB_SOURCES = [
+  { name: "adsb.lol", base: "https://api.adsb.lol/v2" },
+  { name: "adsb.fi", base: "https://opendata.adsb.fi/api/v2" },
+];
+
 async function pollAircraft() {
   const [lat, lon] = state.center;
-  const url = `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/${state.radiusNm}`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const list = data.ac || [];
-    const seen = new Set();
-    for (const ac of list) {
-      if (!ac.hex) continue;
-      seen.add(ac.hex);
-      upsertAircraft(ac);
+  let lastErr = null;
+
+  for (const src of ADSB_SOURCES) {
+    const url = `${src.base}/lat/${lat}/lon/${lon}/dist/${state.radiusNm}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const list = data.ac || [];
+      const seen = new Set();
+      for (const ac of list) {
+        if (!ac.hex) continue;
+        seen.add(ac.hex);
+        upsertAircraft(ac);
+      }
+      pruneStale(seen);
+      document.getElementById("stat-count").textContent = list.length;
+      document.getElementById("stat-source").textContent = src.name;
+      return; // success — done for this cycle
+    } catch (err) {
+      lastErr = err;
+      console.warn(`${src.name} poll failed`, err);
     }
-    pruneStale(seen);
-    document.getElementById("stat-count").textContent = list.length;
-    document.getElementById("stat-source").textContent = "adsb.lol";
-  } catch (err) {
-    document.getElementById("stat-source").textContent = "offline";
-    console.warn("adsb.lol poll failed", err);
   }
+  // every source failed
+  document.getElementById("stat-source").textContent = "offline";
+  showBanner(`Keine ADS-B-Quelle erreichbar (${lastErr?.message || "unbekannter Fehler"}).`);
 }
 
 // ---------------- ACARS polling ----------------

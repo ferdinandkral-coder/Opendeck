@@ -27,7 +27,10 @@ body{
   position:fixed; inset:0 0 auto 0;
   z-index:500;
   height:44px;
-  display:flex; align-items:center; justify-content:space-between;
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  align-items:center;
+  gap:8px;
   padding:0 10px;
   padding-top:env(safe-area-inset-top);
   background:linear-gradient(180deg, rgba(10,14,19,.95), rgba(10,14,19,.75));
@@ -36,8 +39,9 @@ body{
   font-size:12px;
   letter-spacing:.04em;
 }
-.statusbar__group{display:flex; align-items:center; gap:8px;}
-.statusbar__group--center{position:absolute; left:50%; transform:translateX(-50%);}
+.statusbar__group{display:flex; align-items:center; gap:8px; overflow:hidden;}
+.statusbar__group--center{justify-content:center;}
+.statusbar__group:last-child{justify-content:flex-end;}
 .statusbar__mode{color:var(--own); font-weight:700;}
 .statusbar__divider{width:1px; height:14px; background:var(--panel-line);}
 .statusbar__label{color:var(--text-dim);}
