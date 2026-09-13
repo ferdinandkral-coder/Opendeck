@@ -19,6 +19,20 @@ Für ernsthafteren Dauerbetrieb lohnt trotzdem ein Blick auf die
 bei sehr vielen Nutzern/Requests empfiehlt sich ein eigener kostenloser Key bei
 z. B. [MapTiler](https://www.maptiler.com/) oder [Stadia Maps](https://stadiamaps.com/).
 
+## CORS-Umweg
+
+`adsb.lol`, `adsb.fi` und `airframes.io` sind primär für Server-zu-Server-Aufrufe
+gebaut und senden nicht immer CORS-Header für beliebige Browser-Origins. Die
+App versucht deshalb erst den direkten Request, und weicht bei einem
+Fehlschlag automatisch auf einen öffentlichen CORS-Proxy aus (`corsproxy.io`,
+danach `api.allorigins.win`), siehe `fetchJson()` in `app.js`.
+
+Das ist ein Workaround, kein Endzustand: öffentliche Proxys sind selbst
+rate-limitiert und nicht 100 % verfügbar. Für Dauerbetrieb lohnt sich später
+ein eigener, minimaler Proxy (z. B. ein kostenloser Cloudflare-Worker, der die
+drei APIs server-seitig abruft und mit eigenen CORS-Headern zurückgibt) —
+dann fällt die Abhängigkeit von Drittanbieter-Proxys weg.
+
 ## Datenquellen
 
 | Daten     | Quelle                                    | Key nötig? |
@@ -77,6 +91,11 @@ python3 -m http.server 8000
 
 ## Bekannte Grenzen / mögliche Erweiterungen
 
+- **Wichtig bei jeder Änderung an `index.html`, `style.css`, `app.js`,
+  `manifest.json` oder `icon.svg`:** die Version in `sw.js`
+  (`const CACHE = "opendeck-shell-vX"`) hochzählen. Sonst hält der Browser
+  die alte, gecachte Version für unverändert und liefert sie ewig weiter,
+  egal was auf GitHub Pages liegt.
 - Reichweite ist an das aktuelle Kartenzentrum gekoppelt (`radiusNm`,
   Standard 100 NM) — bei Bedarf in den Einstellungen anpassen.
 - Historische Flüge/Routen (`/airframes/flights/{id}/route` bei

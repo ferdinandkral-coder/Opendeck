@@ -34,6 +34,30 @@ window.addEventListener("unhandledrejection", (e) =>
   showBanner(`Fehler: ${e.reason?.message || e.reason}`)
 );
 
+// Some public aviation APIs don't send CORS headers for arbitrary browser
+// origins (they're built for server-to-server use). Try direct first, then
+// fall back through public CORS proxies before giving up on a URL.
+const CORS_WRAPPERS = [
+  (u) => u,
+  (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+  (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+];
+
+async function fetchJson(url, opts = {}) {
+  let lastErr;
+  for (const wrap of CORS_WRAPPERS) {
+    try {
+      const res = await fetch(wrap(url), opts);
+      if (res.status === 429) throw Object.assign(new Error("HTTP 429"), { rateLimited: true });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr;
+}
+
 const state = {
   radiusNm: 100,
   airframesKey: "",
@@ -173,9 +197,7 @@ async function pollAircraft() {
   for (const src of ADSB_SOURCES) {
     const url = `${src.base}/lat/${lat}/lon/${lon}/dist/${state.radiusNm}`;
     try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await fetchJson(url);
       const list = data.ac || [];
       const seen = new Set();
       for (const ac of list) {
@@ -214,14 +236,7 @@ async function pollAcars() {
     ? { Authorization: `Bearer ${state.airframesKey}` }
     : {};
   try {
-    const res = await fetch(url, { headers });
-    if (res.status === 429) {
-      emptyEl.hidden = false;
-      emptyEl.textContent = "Rate-Limit erreicht — ohne Key ist das Kontingent knapp. Ein kostenloser Feeder-Key unter ⚙ hebt das Limit an.";
-      return;
-    }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    const data = await fetchJson(url, { headers });
     const messages = data.data || data.messages || data || [];
     emptyEl.textContent = "Noch keine ACARS-Nachrichten im Umkreis eingetroffen.";
     emptyEl.hidden = messages.length > 0;
@@ -240,6 +255,10 @@ async function pollAcars() {
       )
       .join("");
   } catch (err) {
+    if (err?.rateLimited) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = "Rate-Limit erreicht — ohne Key ist das Kontingent knapp. Ein kostenloser Feeder-Key unter ⚙ hebt das Limit an.";
+    }
     console.warn("airframes.io poll failed", err);
   }
 }
