@@ -63,6 +63,11 @@ body{
 }
 .leaflet-container{background:#0a0e13;}
 
+/* OSM tiles are light by default — invert + hue-rotate to a dark EFIS look */
+.leaflet-tile-pane{
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6);
+}
+
 /* aircraft glyphs drawn as divIcon HTML, see app.js */
 .ac-icon{
   color:var(--own);

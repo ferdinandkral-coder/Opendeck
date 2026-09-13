@@ -7,6 +7,18 @@ ACARS-Cockpit-Nachrichten aus dem Airframes.io-Netzwerk.
 Kein eigener Server nötig, kein Build-Schritt: reines HTML/CSS/JS, läuft
 direkt über GitHub Pages.
 
+## Kartenkacheln
+
+Nutzt die Standard-OpenStreetMap-Tiles (`tile.openstreetmap.org`), per
+CSS-Filter (`invert` + `hue-rotate`) auf das dunkle EFIS-Look gebracht — kein
+Kartenaccount, kein Key. Carto hatte ihre bisher genutzten `dark_nolabels`-Tiles
+zwischenzeitlich hinter einen Pflicht-Key gesetzt, daher der Wechsel.
+
+Für ernsthafteren Dauerbetrieb lohnt trotzdem ein Blick auf die
+[OSM-Tile-Nutzungsrichtlinien](https://operations.osmfoundation.org/policies/tiles/) —
+bei sehr vielen Nutzern/Requests empfiehlt sich ein eigener kostenloser Key bei
+z. B. [MapTiler](https://www.maptiler.com/) oder [Stadia Maps](https://stadiamaps.com/).
+
 ## Datenquellen
 
 | Daten     | Quelle                                    | Key nötig? |

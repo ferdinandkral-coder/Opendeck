@@ -26,11 +26,13 @@ const map = L.map("map", {
   attributionControl: true,
 }).setView(state.center, 8);
 
+// Standard OSM tiles — no API key required. Darkened via CSS filter
+// on .leaflet-tile-pane in style.css to match the EFIS theme.
 L.tileLayer(
-  "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
+  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
   {
-    attribution: '&copy; OpenStreetMap &copy; CARTO — ADS-B: adsb.lol — ACARS: airframes.io',
-    subdomains: "abcd",
+    attribution: '&copy; OpenStreetMap contributors — ADS-B: adsb.lol — ACARS: airframes.io',
+    subdomains: "abc",
     maxZoom: 19,
   }
 ).addTo(map);
