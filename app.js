@@ -265,4 +265,12 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });
+  // When a new SW version takes over (see CACHE bump in sw.js), reload once
+  // so the page picks up the fresh shell instead of running stale JS/CSS.
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloaded) return;
+    reloaded = true;
+    window.location.reload();
+  });
 }

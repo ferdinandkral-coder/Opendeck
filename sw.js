@@ -1,9 +1,9 @@
-const CACHE = "opendeck-shell-v1";
+const CACHE = "opendeck-shell-v2"; // bump this string on every shell-file change
 const SHELL = ["./", "index.html", "style.css", "app.js", "manifest.json", "icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
-  self.skipWaiting();
+  self.skipWaiting(); // activate the new SW immediately, don't wait for old tabs to close
 });
 
 self.addEventListener("activate", (event) => {
@@ -12,7 +12,7 @@ self.addEventListener("activate", (event) => {
       Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
     )
   );
-  self.clients.claim();
+  self.clients.claim(); // take control of already-open tabs right away
 });
 
 // Shell files: cache-first. Live data (adsb.lol / airframes.io): always network.
