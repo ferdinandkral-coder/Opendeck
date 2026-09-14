@@ -83,9 +83,13 @@
       ADS-B feedest) hebt das Limit an.
     </p>
     <label class="sheet__field">
-      <span>Suchradius (NM)</span>
+      <span>Max. Suchradius (NM)</span>
       <input type="number" id="input-radius" min="10" max="250" step="5">
     </label>
+    <p class="sheet__hint" style="margin-top:-6px;">
+      Wird automatisch an den Kartenausschnitt angepasst (rein-/rauszoomen
+      lädt mehr/weniger) — dieser Wert ist nur die Obergrenze dafür.
+    </p>
     <button class="sheet__save" id="settings-save">Speichern</button>
   </div>
 </section>

@@ -43,14 +43,18 @@ const CORS_WRAPPERS = [
   (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
 ];
 
-async function fetchJson(url, opts = {}) {
+async function fetchJson(url, opts = {}, sourceName = url) {
   let lastErr;
-  for (const wrap of CORS_WRAPPERS) {
+  const startIdx = stickyWrapper.get(sourceName) ?? 0;
+  const order = [...CORS_WRAPPERS.keys()].slice(startIdx).concat([...CORS_WRAPPERS.keys()].slice(0, startIdx));
+  for (const idx of order) {
     try {
-      const res = await fetch(wrap(url), opts);
+      const res = await fetch(CORS_WRAPPERS[idx](url), opts);
       if (res.status === 429) throw Object.assign(new Error("HTTP 429"), { rateLimited: true });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
+      const json = await res.json();
+      stickyWrapper.set(sourceName, idx);
+      return json;
     } catch (err) {
       lastErr = err;
     }
@@ -189,15 +193,43 @@ const ADSB_SOURCES = [
   { name: "adsb.lol", base: "https://api.adsb.lol/v2" },
   { name: "adsb.fi", base: "https://opendata.adsb.fi/api/v2" },
 ];
+// Remember which wrapper (direct / proxy A / proxy B) last worked for each
+// source, and try that one first next time — cuts needless retries once we
+// know a path works.
+const stickyWrapper = new Map();
+
+function haversineNm(a, b) {
+  const R = 3440.065; // earth radius in nautical miles
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b[0] - a[0]);
+  const dLon = toRad(b[1] - a[1]);
+  const lat1 = toRad(a[0]);
+  const lat2 = toRad(b[0]);
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.asin(Math.sqrt(h));
+}
+
+// Radius covering the current viewport (center to corner), clamped to a
+// sane range and capped by the user's "Suchradius" setting in ⚙.
+function viewportRadiusNm() {
+  const bounds = map.getBounds();
+  const center = map.getCenter();
+  const corner = bounds.getNorthEast();
+  const raw = haversineNm([center.lat, center.lng], [corner.lat, corner.lng]);
+  return Math.min(Math.max(Math.round(raw), 5), state.radiusNm);
+}
 
 async function pollAircraft() {
-  const [lat, lon] = state.center;
+  const center = map.getCenter();
+  const [lat, lon] = [center.lat, center.lng];
+  const radius = viewportRadiusNm();
   let lastErr = null;
 
   for (const src of ADSB_SOURCES) {
-    const url = `${src.base}/lat/${lat}/lon/${lon}/dist/${state.radiusNm}`;
+    const url = `${src.base}/lat/${lat}/lon/${lon}/dist/${radius}`;
     try {
-      const data = await fetchJson(url);
+      const data = await fetchJson(url, {}, src.name);
       const list = data.ac || [];
       const seen = new Set();
       for (const ac of list) {
@@ -208,14 +240,16 @@ async function pollAircraft() {
       pruneStale(seen);
       document.getElementById("stat-count").textContent = list.length;
       document.getElementById("stat-source").textContent = src.name;
+      pollBackoff = POLL_BASE_MS; // reset backoff on success
       return; // success — done for this cycle
     } catch (err) {
       lastErr = err;
       console.warn(`${src.name} poll failed`, err);
     }
   }
-  // every source failed
+  // every source failed — back off so we don't hammer dead endpoints
   document.getElementById("stat-source").textContent = "offline";
+  pollBackoff = Math.min(pollBackoff * 2, POLL_MAX_MS);
   showBanner(`Keine ADS-B-Quelle erreichbar (${lastErr?.message || "unbekannter Fehler"}).`);
 }
 
@@ -225,18 +259,20 @@ async function pollAcars() {
   const emptyEl = document.getElementById("acars-empty");
   const countEl = document.getElementById("acars-count");
 
-  const [lat, lon] = state.center;
+  const center = map.getCenter();
+  const [lat, lon] = [center.lat, center.lng];
+  const radius = viewportRadiusNm();
   // NOTE: adjust query params against the OpenAPI spec at
   // docs.airframes.io/api-reference if the schema has moved on —
   // this targets /v1/messages filtered to a radius around the map center.
   // Public endpoints work anonymously (no key) at a lower rate limit;
   // a free feeder key just raises that limit — see docs.airframes.io/api.
-  const url = `https://api.airframes.io/v1/messages?lat=${lat}&lon=${lon}&radius=${state.radiusNm}&limit=30`;
+  const url = `https://api.airframes.io/v1/messages?lat=${lat}&lon=${lon}&radius=${radius}&limit=30`;
   const headers = state.airframesKey
     ? { Authorization: `Bearer ${state.airframesKey}` }
     : {};
   try {
-    const data = await fetchJson(url, { headers });
+    const data = await fetchJson(url, { headers }, "airframes.io");
     const messages = data.data || data.messages || data || [];
     emptyEl.textContent = "Noch keine ACARS-Nachrichten im Umkreis eingetroffen.";
     emptyEl.hidden = messages.length > 0;
@@ -309,13 +345,24 @@ function saveSettings() {
 }
 
 // ---------------- polling loop ----------------
-pollAircraft();
+// Adaptive interval: on repeated failures, back off (up to 60s) so we don't
+// hammer dead/rate-limited endpoints; a success resets it back to base.
+const POLL_BASE_MS = 10000;
+const POLL_MAX_MS = 60000;
+let pollBackoff = POLL_BASE_MS;
+
+function scheduleAircraftPoll() {
+  pollAircraft().finally(() => setTimeout(scheduleAircraftPoll, pollBackoff));
+}
+scheduleAircraftPoll();
 pollAcars();
-setInterval(pollAircraft, 8000);
 setInterval(pollAcars, 15000);
+
+// Refetch on pan/zoom, debounced so a drag gesture doesn't spam requests.
+let moveDebounce = null;
 map.on("moveend", () => {
-  const c = map.getCenter();
-  state.center = [c.lat, c.lng];
+  clearTimeout(moveDebounce);
+  moveDebounce = setTimeout(pollAircraft, 500);
 });
 
 // ---------------- service worker ----------------

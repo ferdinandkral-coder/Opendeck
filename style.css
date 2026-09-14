@@ -169,6 +169,7 @@ body{
   background:rgba(0,0,0,.55);
   display:flex; align-items:flex-end;
 }
+.sheet[hidden]{display:none;}
 .sheet__panel{
   width:100%;
   background:var(--panel);

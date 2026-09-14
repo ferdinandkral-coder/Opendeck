@@ -19,6 +19,18 @@ Für ernsthafteren Dauerbetrieb lohnt trotzdem ein Blick auf die
 bei sehr vielen Nutzern/Requests empfiehlt sich ein eigener kostenloser Key bei
 z. B. [MapTiler](https://www.maptiler.com/) oder [Stadia Maps](https://stadiamaps.com/).
 
+## Kartenausschnitt statt fixem Radius
+
+Flugzeuge werden nach dem sichtbaren Kartenausschnitt geladen, nicht nach
+einem festen Radius ab einem fixen Punkt: rein-/rauszoomen oder verschieben
+löst automatisch (debounced) einen neuen Request mit passendem Radius aus.
+Der "Max. Suchradius" in ⚙ ist nur noch eine Obergrenze dafür.
+
+Ein echter 3D-Globus (WebGL/Three.js, wie in der Random-Route-App) wäre der
+nächste sinnvolle Schritt, ist aber ein eigenes, größeres Vorhaben — löst die
+CORS-/Rate-Limit-Themen der Datenquellen nicht, ändert nur die Darstellung.
+Aktuell erstmal bewusst zurückgestellt, bis die Datenschicht stabil läuft.
+
 ## CORS-Umweg
 
 `adsb.lol`, `adsb.fi` und `airframes.io` sind primär für Server-zu-Server-Aufrufe
