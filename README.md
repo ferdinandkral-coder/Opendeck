@@ -31,7 +31,27 @@ nächste sinnvolle Schritt, ist aber ein eigenes, größeres Vorhaben — löst 
 CORS-/Rate-Limit-Themen der Datenquellen nicht, ändert nur die Darstellung.
 Aktuell erstmal bewusst zurückgestellt, bis die Datenschicht stabil läuft.
 
-## CORS-Umweg
+## Eigener Proxy (empfohlen)
+
+Öffentliche CORS-Proxys sind ein Notbehelf — sie blocken irgendwann mit
+401/429, weil sie selbst überlastet oder limitiert sind. Zuverlässiger: ein
+eigener, kostenloser Proxy auf Cloudflare Workers (kein CLI, keine
+Kreditkarte nötig):
+
+1. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages**
+   → **Create** → **Worker**, einen Namen vergeben (z. B. `opendeck-proxy`),
+   einmal auf **Deploy** klicken zum Anlegen.
+2. **Edit code** öffnen, kompletten Inhalt löschen, den Code aus
+   [`cloudflare-worker.js`](cloudflare-worker.js) hier im Repo einfügen,
+   erneut **Deploy**.
+3. Die URL kopieren (`https://opendeck-proxy.<du>.workers.dev`).
+4. In OpenDeck unter ⚙ **Eigener Proxy** einfügen, Speichern.
+
+Der Worker lässt nur Requests an `adsb.lol`, `adsb.fi` und `airframes.io` durch
+(kein offener Relay), reicht einen mitgeschickten Airframes-Key durch und
+kostet im Cloudflare-Free-Tier nichts (100.000 Requests/Tag).
+
+## CORS-Umweg (Fallback ohne eigenen Proxy)
 
 `adsb.lol`, `adsb.fi` und `airframes.io` sind primär für Server-zu-Server-Aufrufe
 gebaut und senden nicht immer CORS-Header für beliebige Browser-Origins. Die

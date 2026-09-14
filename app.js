@@ -35,21 +35,30 @@ window.addEventListener("unhandledrejection", (e) =>
 );
 
 // Some public aviation APIs don't send CORS headers for arbitrary browser
-// origins (they're built for server-to-server use). Try direct first, then
-// fall back through public CORS proxies before giving up on a URL.
-const CORS_WRAPPERS = [
-  (u) => u,
-  (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
-  (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-];
+// origins (they're built for server-to-server use). Try the user's own
+// proxy first (if configured — see cloudflare-worker.js), then direct,
+// then public CORS proxies as a last resort (these are unreliable and
+// tend to rate-limit or block after a while).
+function corsWrappers() {
+  const wrappers = [];
+  if (state.proxyUrl) {
+    wrappers.push((u) => `${state.proxyUrl.replace(/\/$/, "")}/?url=${encodeURIComponent(u)}`);
+  }
+  wrappers.push((u) => u);
+  wrappers.push((u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`);
+  wrappers.push((u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`);
+  return wrappers;
+}
 
 async function fetchJson(url, opts = {}, sourceName = url) {
   let lastErr;
+  const wrappers = corsWrappers();
   const startIdx = stickyWrapper.get(sourceName) ?? 0;
-  const order = [...CORS_WRAPPERS.keys()].slice(startIdx).concat([...CORS_WRAPPERS.keys()].slice(0, startIdx));
+  const keys = [...wrappers.keys()];
+  const order = keys.slice(startIdx % keys.length).concat(keys.slice(0, startIdx % keys.length));
   for (const idx of order) {
     try {
-      const res = await fetch(CORS_WRAPPERS[idx](url), opts);
+      const res = await fetch(wrappers[idx](url), opts);
       if (res.status === 429) throw Object.assign(new Error("HTTP 429"), { rateLimited: true });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
@@ -65,6 +74,7 @@ async function fetchJson(url, opts = {}, sourceName = url) {
 const state = {
   radiusNm: 100,
   airframesKey: "",
+  proxyUrl: "",
   aircraft: new Map(),   // hex -> {marker, data}
   selectedHex: null,
   center: DEFAULT_CENTER,
@@ -315,16 +325,20 @@ document.getElementById("scratchpad-handle").addEventListener("click", () => {
 // ---------------- settings sheet ----------------
 const sheet = document.getElementById("settings-sheet");
 document.getElementById("btn-settings").addEventListener("click", () => {
+  document.getElementById("input-proxy-url").value = state.proxyUrl;
   document.getElementById("input-airframes-key").value = state.airframesKey;
   document.getElementById("input-radius").value = state.radiusNm;
   sheet.hidden = false;
 });
 document.getElementById("settings-close").addEventListener("click", () => (sheet.hidden = true));
 document.getElementById("settings-save").addEventListener("click", () => {
+  state.proxyUrl = document.getElementById("input-proxy-url").value.trim();
   state.airframesKey = document.getElementById("input-airframes-key").value.trim();
   state.radiusNm = Number(document.getElementById("input-radius").value) || 100;
+  stickyWrapper.clear(); // proxy config changed — re-probe from scratch
   saveSettings();
   sheet.hidden = true;
+  pollAircraft();
   pollAcars();
 });
 
@@ -333,6 +347,7 @@ function loadSettings() {
     const raw = localStorage.getItem(STORE_KEY);
     if (!raw) return;
     const saved = JSON.parse(raw);
+    state.proxyUrl = saved.proxyUrl || "";
     state.airframesKey = saved.airframesKey || "";
     state.radiusNm = saved.radiusNm || 100;
   } catch (_) {}
@@ -340,7 +355,7 @@ function loadSettings() {
 function saveSettings() {
   localStorage.setItem(
     STORE_KEY,
-    JSON.stringify({ airframesKey: state.airframesKey, radiusNm: state.radiusNm })
+    JSON.stringify({ proxyUrl: state.proxyUrl, airframesKey: state.airframesKey, radiusNm: state.radiusNm })
   );
 }
 

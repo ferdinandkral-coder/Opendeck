@@ -74,6 +74,16 @@
       <button class="iconbtn iconbtn--ghost" id="settings-close" aria-label="Schließen">✕</button>
     </div>
     <label class="sheet__field">
+      <span>Eigener Proxy (empfohlen)</span>
+      <input type="text" id="input-proxy-url" placeholder="https://opendeck-proxy.dein-name.workers.dev" autocomplete="off" spellcheck="false">
+    </label>
+    <p class="sheet__hint" style="margin-top:-6px;">
+      Ohne eigenen Proxy verlässt sich OpenDeck auf öffentliche CORS-Proxys —
+      die sind gratis, aber unzuverlässig (blocken irgendwann mit 401/429).
+      Anleitung für einen eigenen, kostenlosen Cloudflare-Worker-Proxy steht
+      in <code>cloudflare-worker.js</code> im Repo.
+    </p>
+    <label class="sheet__field">
       <span>Airframes.io API-Key (optional)</span>
       <input type="text" id="input-airframes-key" placeholder="funktioniert auch leer, nur mit niedrigerem Limit" autocomplete="off" spellcheck="false">
     </label>
