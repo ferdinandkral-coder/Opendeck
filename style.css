@@ -162,6 +162,25 @@ body{
 }
 .scratchpad__msg-head{display:flex; justify-content:space-between; color:var(--text-dim); font-size:10px; margin-bottom:4px;}
 
+.acars-group__head{
+  all:unset; display:flex; align-items:center; gap:8px;
+  width:100%; cursor:pointer; color:var(--text);
+}
+.acars-group__ac{color:var(--caution); font-weight:700; font-size:12px;}
+.acars-group__label{color:var(--text-dim); font-size:10.5px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.acars-group__count{
+  background:var(--panel-line); color:var(--text);
+  font-size:10px; font-weight:700;
+  border-radius:8px; padding:1px 7px; flex-shrink:0;
+}
+.acars-group__latest{margin-top:5px;}
+.acars-group__history{
+  margin-top:8px; padding-top:8px;
+  border-top:1px dashed var(--panel-line);
+  display:flex; flex-direction:column; gap:8px;
+}
+.acars-group__hist-label{color:var(--text-dim); font-size:10px; display:block; margin-bottom:2px;}
+
 /* ---- settings sheet ---- */
 .sheet{
   position:fixed; inset:0;

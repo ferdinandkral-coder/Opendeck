@@ -19,6 +19,16 @@ Für ernsthafteren Dauerbetrieb lohnt trotzdem ein Blick auf die
 bei sehr vielen Nutzern/Requests empfiehlt sich ein eigener kostenloser Key bei
 z. B. [MapTiler](https://www.maptiler.com/) oder [Stadia Maps](https://stadiamaps.com/).
 
+## ACARS: gruppiert & übersetzt
+
+Nachrichten werden nach Flugzeug gruppiert (eine Karte pro Aircraft, neueste
+zuerst) statt als endlose chronologische Liste. Antippen einer Karte klappt
+ältere Nachrichten desselben Flugzeugs auf. Bekannte Label-Codes (`H1`,
+OOOI-Codes `80`–`83`, …) werden in Klartext übersetzt — das ist **Best-Effort**,
+viele ARINC-620-Labels sind Airline-/Avionik-spezifisch und nicht abgedeckt;
+unbekannte Codes zeigen einfach den Rohcode. Liste in `ACARS_LABELS` in
+`app.js`, bei Bedarf erweiterbar.
+
 ## Kartenausschnitt statt fixem Radius
 
 Flugzeuge werden nach dem sichtbaren Kartenausschnitt geladen, nicht nach

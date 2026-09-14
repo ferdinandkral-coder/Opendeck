@@ -263,6 +263,77 @@ async function pollAircraft() {
   showBanner(`Keine ADS-B-Quelle erreichbar (${lastErr?.message || "unbekannter Fehler"}).`);
 }
 
+// ---------------- ACARS readability ----------------
+// Best-effort translation of common ARINC-620 label codes. Not exhaustive —
+// many labels are airline/avionics-specific — unknown codes just show raw.
+const ACARS_LABELS = {
+  H1: "Freitext",
+  "5Z": "OOOI-Report",
+  "80": "OUT – Push-back",
+  "81": "OFF – Abheben",
+  "82": "ON – Aufsetzen",
+  "83": "IN – Ankunft am Gate",
+  "10": "Positions-/Fortschrittsbericht",
+  "16": "Wettermeldung",
+  SA: "Systemadresse",
+  Q0: "Quittierung",
+};
+function labelName(label) {
+  return ACARS_LABELS[label] || null;
+}
+function cleanAcarsText(raw) {
+  return String(raw || "")
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "") // strip control chars
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Group messages by aircraft instead of dumping a flat chronological list —
+// one card per aircraft, latest message up front, older ones tucked away.
+const expandedAcarsGroups = new Set();
+function renderAcarsGroups(messages) {
+  const groups = new Map();
+  for (const m of messages) {
+    const key = m.tail || m.flight || m.callsign || m.icao || "—";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(m);
+  }
+  const ts = (m) => m.timestamp || m.time || 0;
+  for (const arr of groups.values()) arr.sort((a, b) => ts(b) - ts(a));
+  const sortedKeys = [...groups.keys()].sort((a, b) => ts(groups.get(b)[0]) - ts(groups.get(a)[0]));
+
+  return sortedKeys
+    .map((key) => {
+      const msgs = groups.get(key);
+      const latest = msgs[0];
+      const friendly = labelName(latest.label);
+      const text = cleanAcarsText(latest.text || latest.message) || "(kein Text)";
+      const extra = msgs.length - 1;
+      const open = expandedAcarsGroups.has(key);
+      const history = msgs
+        .slice(1)
+        .map((m) => {
+          const f = labelName(m.label);
+          return `<div class="acars-group__hist">
+            <span class="acars-group__hist-label">${escapeHtml(m.label || "")}${f ? " · " + escapeHtml(f) : ""}</span>
+            <div>${escapeHtml(cleanAcarsText(m.text || m.message) || "(kein Text)")}</div>
+          </div>`;
+        })
+        .join("");
+      return `
+        <li class="scratchpad__msg acars-group" data-key="${escapeHtml(key)}">
+          <button class="acars-group__head" type="button">
+            <span class="acars-group__ac">${escapeHtml(key)}</span>
+            <span class="acars-group__label">${escapeHtml(friendly || latest.label || "—")}</span>
+            ${extra > 0 ? `<span class="acars-group__count">+${extra}</span>` : ""}
+          </button>
+          <div class="acars-group__latest">${escapeHtml(text)}</div>
+          ${extra > 0 ? `<div class="acars-group__history" ${open ? "" : "hidden"}>${history}</div>` : ""}
+        </li>`;
+    })
+    .join("");
+}
+
 // ---------------- ACARS polling ----------------
 async function pollAcars() {
   const listEl = document.getElementById("acars-list");
@@ -287,19 +358,7 @@ async function pollAcars() {
     emptyEl.textContent = "Noch keine ACARS-Nachrichten im Umkreis eingetroffen.";
     emptyEl.hidden = messages.length > 0;
     countEl.textContent = messages.length;
-    listEl.innerHTML = messages
-      .slice(0, 30)
-      .map(
-        (m) => `
-        <li class="scratchpad__msg">
-          <div class="scratchpad__msg-head">
-            <span>${escapeHtml(m.flight || m.callsign || m.tail || "—")}</span>
-            <span>${escapeHtml(m.label || "")}</span>
-          </div>
-          <div>${escapeHtml(m.text || m.message || "")}</div>
-        </li>`
-      )
-      .join("");
+    listEl.innerHTML = renderAcarsGroups(messages.slice(0, 30));
   } catch (err) {
     if (err?.rateLimited) {
       emptyEl.hidden = false;
@@ -308,6 +367,19 @@ async function pollAcars() {
     console.warn("airframes.io poll failed", err);
   }
 }
+
+// Expand/collapse a group's older messages — delegated so it survives re-renders.
+document.getElementById("acars-list").addEventListener("click", (e) => {
+  const head = e.target.closest(".acars-group__head");
+  if (!head) return;
+  const li = head.closest(".acars-group");
+  const hist = li.querySelector(".acars-group__history");
+  if (!hist) return;
+  const willOpen = hist.hidden;
+  hist.hidden = !willOpen;
+  if (willOpen) expandedAcarsGroups.add(li.dataset.key);
+  else expandedAcarsGroups.delete(li.dataset.key);
+});
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({
@@ -362,8 +434,8 @@ function saveSettings() {
 // ---------------- polling loop ----------------
 // Adaptive interval: on repeated failures, back off (up to 60s) so we don't
 // hammer dead/rate-limited endpoints; a success resets it back to base.
-const POLL_BASE_MS = 10000;
-const POLL_MAX_MS = 60000;
+const POLL_BASE_MS = 12000;
+const POLL_MAX_MS = 90000;
 let pollBackoff = POLL_BASE_MS;
 
 function scheduleAircraftPoll() {
@@ -377,7 +449,7 @@ setInterval(pollAcars, 15000);
 let moveDebounce = null;
 map.on("moveend", () => {
   clearTimeout(moveDebounce);
-  moveDebounce = setTimeout(pollAircraft, 500);
+  moveDebounce = setTimeout(pollAircraft, 800);
 });
 
 // ---------------- service worker ----------------
