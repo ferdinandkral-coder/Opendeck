@@ -34,6 +34,17 @@ window.addEventListener("unhandledrejection", (e) =>
   showBanner(`Fehler: ${e.reason?.message || e.reason}`)
 );
 
+// ---------------- debug log ----------------
+// Ring buffer of the last N request attempts — which source, which wrapper,
+// how long it took, and what happened. Viewable via the 🐞 button.
+const DEBUG_LOG = [];
+const DEBUG_LOG_MAX = 40;
+function logDebug(entry) {
+  DEBUG_LOG.unshift({ time: Date.now(), ...entry });
+  if (DEBUG_LOG.length > DEBUG_LOG_MAX) DEBUG_LOG.length = DEBUG_LOG_MAX;
+  if (!document.getElementById("debug-sheet").hidden) renderDebugLog();
+}
+
 // Some public aviation APIs don't send CORS headers for arbitrary browser
 // origins (they're built for server-to-server use). Try the user's own
 // proxy first (if configured — see cloudflare-worker.js), then direct,
@@ -42,11 +53,20 @@ window.addEventListener("unhandledrejection", (e) =>
 function corsWrappers() {
   const wrappers = [];
   if (state.proxyUrl) {
-    wrappers.push((u) => `${state.proxyUrl.replace(/\/$/, "")}/?url=${encodeURIComponent(u)}`);
+    wrappers.push({
+      name: "Eigener Proxy",
+      wrap: (u) => `${state.proxyUrl.replace(/\/$/, "")}/?url=${encodeURIComponent(u)}`,
+    });
   }
-  wrappers.push((u) => u);
-  wrappers.push((u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`);
-  wrappers.push((u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`);
+  wrappers.push({ name: "Direkt", wrap: (u) => u });
+  wrappers.push({
+    name: "corsproxy.io",
+    wrap: (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+  });
+  wrappers.push({
+    name: "allorigins.win",
+    wrap: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  });
   return wrappers;
 }
 
@@ -57,17 +77,25 @@ async function fetchJson(url, opts = {}, sourceName = url) {
   const keys = [...wrappers.keys()];
   const order = keys.slice(startIdx % keys.length).concat(keys.slice(0, startIdx % keys.length));
   for (const idx of order) {
+    const { name, wrap } = wrappers[idx];
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 7000);
+    const t0 = performance.now();
     try {
-      const res = await fetch(wrappers[idx](url), { ...opts, signal: controller.signal });
-      if (res.status === 429) throw Object.assign(new Error("HTTP 429"), { rateLimited: true });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await fetch(wrap(url), { ...opts, signal: controller.signal });
+      const ms = Math.round(performance.now() - t0);
+      if (res.status === 429) throw Object.assign(new Error("HTTP 429"), { rateLimited: true, ms });
+      if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { ms });
       const json = await res.json();
       stickyWrapper.set(sourceName, idx);
+      logDebug({ source: sourceName, wrapper: name, ok: true, ms, detail: `HTTP ${res.status}` });
       return json;
     } catch (err) {
-      lastErr = err.name === "AbortError" ? new Error("Zeitüberschreitung (7s)") : err;
+      const ms = err.ms ?? Math.round(performance.now() - t0);
+      const isAbort = err.name === "AbortError";
+      const detail = isAbort ? "Zeitüberschreitung (7s)" : err.message;
+      logDebug({ source: sourceName, wrapper: name, ok: false, ms, detail });
+      lastErr = isAbort ? new Error("Zeitüberschreitung (7s)") : err;
     } finally {
       clearTimeout(timeout);
     }
@@ -264,7 +292,7 @@ async function pollAircraft() {
   // every source failed — back off so we don't hammer dead endpoints
   document.getElementById("stat-source").textContent = "offline";
   pollBackoff = Math.min(pollBackoff * 2, POLL_MAX_MS);
-  showBanner(`Keine ADS-B-Quelle erreichbar (${lastErr?.message || "unbekannter Fehler"}).`);
+  showBanner(`Keine ADS-B-Quelle erreichbar (${lastErr?.message || "unbekannter Fehler"}). Details: 🐞 Debug-Log.`);
 }
 
 // ---------------- ACARS readability ----------------
@@ -396,6 +424,51 @@ const scratchpad = document.getElementById("scratchpad");
 document.getElementById("scratchpad-handle").addEventListener("click", () => {
   const open = scratchpad.classList.toggle("scratchpad--open");
   document.getElementById("scratchpad-handle").setAttribute("aria-expanded", open);
+});
+
+// ---------------- debug sheet ----------------
+const debugSheet = document.getElementById("debug-sheet");
+function renderDebugLog() {
+  const list = document.getElementById("debug-log-list");
+  if (!DEBUG_LOG.length) {
+    list.innerHTML = `<p class="sheet__hint" style="margin:0;">Noch keine Anfragen protokolliert.</p>`;
+    return;
+  }
+  list.innerHTML = DEBUG_LOG.map((e) => {
+    const t = new Date(e.time).toLocaleTimeString("de-AT", { hour12: false });
+    const cls = e.ok ? "debug-log__row--ok" : "debug-log__row--fail";
+    return `<div class="debug-log__row ${cls}">
+      <span class="debug-log__time">${t}</span>
+      <span class="debug-log__src">${escapeHtml(e.source)}</span>
+      <span class="debug-log__wrap">${escapeHtml(e.wrapper)}</span>
+      <span class="debug-log__ms">${e.ms}ms</span>
+      <span class="debug-log__detail">${escapeHtml(e.detail)}</span>
+    </div>`;
+  }).join("");
+}
+function debugLogAsText() {
+  return DEBUG_LOG.map((e) => {
+    const t = new Date(e.time).toLocaleTimeString("de-AT", { hour12: false });
+    return `${t} | ${e.source} | ${e.wrapper} | ${e.ms}ms | ${e.ok ? "OK" : "FEHLER"}: ${e.detail}`;
+  }).join("\n");
+}
+document.getElementById("btn-debug").addEventListener("click", () => {
+  renderDebugLog();
+  debugSheet.hidden = false;
+});
+document.getElementById("debug-close").addEventListener("click", () => (debugSheet.hidden = true));
+document.getElementById("debug-clear").addEventListener("click", () => {
+  DEBUG_LOG.length = 0;
+  renderDebugLog();
+});
+document.getElementById("debug-copy").addEventListener("click", async () => {
+  const text = debugLogAsText() || "(leer)";
+  try {
+    await navigator.clipboard.writeText(text);
+    showBanner("Log kopiert.");
+  } catch {
+    showBanner("Kopieren nicht möglich — Log manuell markieren.");
+  }
 });
 
 // ---------------- settings sheet ----------------

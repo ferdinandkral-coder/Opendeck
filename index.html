@@ -29,6 +29,7 @@
   </div>
   <div class="statusbar__group">
     <button class="iconbtn" id="btn-locate" title="Eigene Position zentrieren" aria-label="Zentrieren">◎</button>
+    <button class="iconbtn" id="btn-debug" title="Debug-Log" aria-label="Debug-Log">🐞</button>
     <button class="iconbtn" id="btn-settings" title="Einstellungen" aria-label="Einstellungen">⚙</button>
   </div>
 </header>
@@ -101,6 +102,24 @@
       lädt mehr/weniger) — dieser Wert ist nur die Obergrenze dafür.
     </p>
     <button class="sheet__save" id="settings-save">Speichern</button>
+  </div>
+</section>
+
+<!-- Debug log sheet -->
+<section class="sheet" id="debug-sheet" hidden>
+  <div class="sheet__panel">
+    <div class="sheet__head">
+      <span>Debug-Log</span>
+      <button class="iconbtn iconbtn--ghost" id="debug-close" aria-label="Schließen">✕</button>
+    </div>
+    <p class="sheet__hint" style="margin:0;">
+      Letzte Anfragen: Quelle, welcher Umweg, Dauer, Ergebnis. Neueste zuerst.
+    </p>
+    <div id="debug-log-list" class="debug-log"></div>
+    <div style="display:flex; gap:10px;">
+      <button class="sheet__save" id="debug-copy" style="flex:1; background:var(--info); color:#06121a;">Log kopieren</button>
+      <button class="sheet__save" id="debug-clear" style="flex:1; background:var(--panel-line); color:var(--text);">Leeren</button>
+    </div>
   </div>
 </section>
 
