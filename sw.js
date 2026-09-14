@@ -1,4 +1,4 @@
-const CACHE = "opendeck-shell-v11"; // bump this string on every shell-file change
+const CACHE = "opendeck-shell-v13"; // bump this string on every shell-file change
 const SHELL = ["./", "index.html", "style.css", "app.js", "manifest.json", "icon.svg"];
 
 self.addEventListener("install", (event) => {

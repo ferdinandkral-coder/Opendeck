@@ -75,14 +75,27 @@
       <button class="iconbtn iconbtn--ghost" id="settings-close" aria-label="Schließen">✕</button>
     </div>
     <label class="sheet__field">
-      <span>Eigener Proxy (empfohlen)</span>
-      <input type="text" id="input-proxy-url" placeholder="https://opendeck-proxy.dein-name.workers.dev" autocomplete="off" spellcheck="false">
+      <span>OpenSky-Konto (optional, format: benutzer:passwort)</span>
+      <input type="text" id="input-opensky-auth" placeholder="funktioniert auch leer, niedrigeres Limit" autocomplete="off" spellcheck="false">
     </label>
     <p class="sheet__hint" style="margin-top:-6px;">
-      Ohne eigenen Proxy verlässt sich OpenDeck auf öffentliche CORS-Proxys —
-      die sind gratis, aber unzuverlässig (blocken irgendwann mit 401/429).
-      Anleitung für einen eigenen, kostenlosen Cloudflare-Worker-Proxy steht
-      in <code>cloudflare-worker.js</code> im Repo.
+      Kostenloses Konto auf opensky-network.org hebt das Tageskontingent an
+      und könnte IP-basierte Blocks umgehen, die bei anonymen Anfragen
+      auftreten.
+    </p>
+    <label class="sheet__field">
+      <span>Eigener Proxy (Cloudflare Worker)</span>
+      <input type="text" id="input-proxy-url" placeholder="https://opendeck-proxy.dein-name.workers.dev" autocomplete="off" spellcheck="false">
+    </label>
+    <label class="sheet__field">
+      <span>Zweiter Proxy (z. B. Deno Deploy)</span>
+      <input type="text" id="input-proxy-url-2" placeholder="https://dein-projekt.deno.dev" autocomplete="off" spellcheck="false">
+    </label>
+    <p class="sheet__hint" style="margin-top:-6px;">
+      Manche Quellen blocken Cloudflares IP-Bereich speziell (siehe
+      README). Ein zweiter Proxy auf anderer Infrastruktur (Deno Deploy,
+      Code in <code>deno-proxy.js</code> im Repo) ist ein zweiter Versuch,
+      wenn der erste bei einer bestimmten Quelle konsequent scheitert.
     </p>
     <label class="sheet__field">
       <span>Airframes.io API-Key (optional)</span>

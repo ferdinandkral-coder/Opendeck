@@ -58,6 +58,12 @@ function corsWrappers() {
       wrap: (u) => `${state.proxyUrl.replace(/\/$/, "")}/?url=${encodeURIComponent(u)}`,
     });
   }
+  if (state.proxyUrl2) {
+    wrappers.push({
+      name: "Zweiter Proxy",
+      wrap: (u) => `${state.proxyUrl2.replace(/\/$/, "")}/?url=${encodeURIComponent(u)}`,
+    });
+  }
   wrappers.push({ name: "Direkt", wrap: (u) => u });
   wrappers.push({
     name: "corsproxy.io",
@@ -103,6 +109,8 @@ const state = {
   radiusNm: 100,
   airframesKey: "",
   proxyUrl: "",
+  proxyUrl2: "",
+  openskyAuth: "", // "user:pass"
   aircraft: new Map(),   // hex -> {marker, data}
   selectedHex: null,
   center: DEFAULT_CENTER,
@@ -302,8 +310,12 @@ async function pollAircraft() {
 
   for (const src of ADSB_SOURCES) {
     const url = buildAdsbUrl(src);
+    const headers =
+      src.name === "opensky" && state.openskyAuth
+        ? { Authorization: `Basic ${btoa(state.openskyAuth)}` }
+        : {};
     try {
-      const data = await fetchJson(url, {}, src.name);
+      const data = await fetchJson(url, { headers }, src.name);
       const list = normalizeAircraft(src, data);
       const seen = new Set();
       for (const ac of list) {
@@ -507,14 +519,18 @@ document.getElementById("debug-copy").addEventListener("click", async () => {
 const sheet = document.getElementById("settings-sheet");
 document.getElementById("btn-settings").addEventListener("click", () => {
   document.getElementById("input-proxy-url").value = state.proxyUrl;
+  document.getElementById("input-proxy-url-2").value = state.proxyUrl2;
   document.getElementById("input-airframes-key").value = state.airframesKey;
+  document.getElementById("input-opensky-auth").value = state.openskyAuth;
   document.getElementById("input-radius").value = state.radiusNm;
   sheet.hidden = false;
 });
 document.getElementById("settings-close").addEventListener("click", () => (sheet.hidden = true));
 document.getElementById("settings-save").addEventListener("click", () => {
   state.proxyUrl = document.getElementById("input-proxy-url").value.trim();
+  state.proxyUrl2 = document.getElementById("input-proxy-url-2").value.trim();
   state.airframesKey = document.getElementById("input-airframes-key").value.trim();
+  state.openskyAuth = document.getElementById("input-opensky-auth").value.trim();
   state.radiusNm = Number(document.getElementById("input-radius").value) || 100;
   stickyWrapper.clear(); // proxy config changed — re-probe from scratch
   saveSettings();
@@ -529,14 +545,22 @@ function loadSettings() {
     if (!raw) return;
     const saved = JSON.parse(raw);
     state.proxyUrl = saved.proxyUrl || "";
+    state.proxyUrl2 = saved.proxyUrl2 || "";
     state.airframesKey = saved.airframesKey || "";
+    state.openskyAuth = saved.openskyAuth || "";
     state.radiusNm = saved.radiusNm || 100;
   } catch (_) {}
 }
 function saveSettings() {
   localStorage.setItem(
     STORE_KEY,
-    JSON.stringify({ proxyUrl: state.proxyUrl, airframesKey: state.airframesKey, radiusNm: state.radiusNm })
+    JSON.stringify({
+      proxyUrl: state.proxyUrl,
+      proxyUrl2: state.proxyUrl2,
+      airframesKey: state.airframesKey,
+      openskyAuth: state.openskyAuth,
+      radiusNm: state.radiusNm,
+    })
   );
 }
 

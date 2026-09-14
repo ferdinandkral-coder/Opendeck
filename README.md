@@ -41,6 +41,12 @@ noch direkter zum "nach Kartenausschnitt laden"-Ansatz). Anonym ohne Key
 nutzbar, aber mit niedrigem Tageskontingent (~400 Requests/Tag) — sollte bei
 den aktuellen Poll-Intervallen reichen, aber nicht großzügig sein.
 
+Alle drei blockten in Tests konsequent Cloudflares IP-Bereich (429/403/Timeout)
+— ein kostenloses OpenSky-Konto (⚙ → "OpenSky-Konto") identifiziert Anfragen
+über Login statt nur IP und hebt das Tageskontingent deutlich an; ob es den
+IP-Block umgeht, ist nicht garantiert, aber der naheliegendste nächste
+Versuch.
+
 ## Kartenausschnitt statt fixem Radius
 
 Flugzeuge werden nach dem sichtbaren Kartenausschnitt geladen, nicht nach
@@ -69,20 +75,38 @@ Kreditkarte nötig):
 3. Die URL kopieren (`https://opendeck-proxy.<du>.workers.dev`).
 4. In OpenDeck unter ⚙ **Eigener Proxy** einfügen, Speichern.
 
-Der Worker lässt nur Requests an `adsb.lol`, `adsb.fi` und `airframes.io` durch
-(kein offener Relay), reicht einen mitgeschickten Airframes-Key durch und
-kostet im Cloudflare-Free-Tier nichts (100.000 Requests/Tag).
+Der Worker lässt nur Requests an `adsb.lol`, `adsb.fi`, `airframes.io` und
+`opensky-network.org` durch (kein offener Relay), reicht einen mitgeschickten
+Auth-Header (Airframes-Key oder OpenSky-Token) durch und kostet im
+Cloudflare-Free-Tier nichts (100.000 Requests/Tag).
+
+## Zweiter Proxy: Deno Deploy
+
+`adsb.lol`, `adsb.fi` und besonders `opensky-network.org` (deren Doku das
+explizit erwähnt) blocken oder limitieren Cloudflares IP-Bereich strenger als
+z. B. eine normale Mobilfunk-Verbindung. Ein zweiter Proxy auf anderer
+Infrastruktur ist da manchmal der einzige Ausweg:
+
+1. [dash.deno.com](https://dash.deno.com) → **New Project** → **Playground**
+2. Platzhalter-Code löschen, den Inhalt aus
+   [`deno-proxy.js`](deno-proxy.js) hier im Repo einfügen
+3. Speichern (deployt meist automatisch)
+4. Die URL kopieren (`https://<projekt>.deno.dev`)
+5. In OpenDeck unter ⚙ **Zweiter Proxy** einfügen, Speichern
+
+Beide Proxys können parallel eingetragen sein — pro Quelle merkt sich die App
+(`stickyWrapper` in `app.js`), welcher Weg zuletzt funktioniert hat, und
+probiert den zuerst.
 
 ## CORS-Umweg (Fallback ohne eigenen Proxy)
 
 `adsb.lol`, `adsb.fi` und `airframes.io` sind primär für Server-zu-Server-Aufrufe
 gebaut und senden nicht immer CORS-Header für beliebige Browser-Origins. Die
 App versucht deshalb erst den direkten Request, und weicht bei einem
-Fehlschlag automatisch auf einen öffentlichen CORS-Proxy aus (`corsproxy.io`,
-danach `corsproxy.io` als schnell scheiternder Notnagel), siehe `fetchJson()`
-in `app.js`. `allorigins.win` wurde nach Auswertung des Debug-Logs entfernt —
-hing dort bei jedem Versuch die vollen 7 Sekunden fest, statt schnell zu
-scheitern oder zu funktionieren.
+Fehlschlag automatisch auf `corsproxy.io` als schnell scheiternden Notnagel
+aus, siehe `fetchJson()` in `app.js`. `allorigins.win` wurde nach Auswertung
+des Debug-Logs entfernt — hing dort bei jedem Versuch die vollen 7 Sekunden
+fest, statt schnell zu scheitern oder zu funktionieren.
 
 Das ist ein Workaround, kein Endzustand: öffentliche Proxys sind selbst
 rate-limitiert und nicht 100 % verfügbar. Für Dauerbetrieb lohnt sich später
