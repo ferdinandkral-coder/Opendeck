@@ -63,10 +63,6 @@ function corsWrappers() {
     name: "corsproxy.io",
     wrap: (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
   });
-  wrappers.push({
-    name: "allorigins.win",
-    wrap: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  });
   return wrappers;
 }
 
@@ -229,11 +225,15 @@ function pruneStale(seenHexes) {
 }
 
 // ---------------- ADS-B polling ----------------
-// Two mirrors with an identical URL schema — if one is unreachable
-// from the browser (CORS, downtime, ...) the other takes over.
+// Three independent sources with different query schemas — if one is
+// blocked/rate-limited/down, the next takes over. adsb.lol/adsb.fi use a
+// point+radius query; OpenSky (an academic project, well suited to exactly
+// this kind of hobby use) uses a bounding box, which maps even more
+// naturally onto "load what's in the visible map area".
 const ADSB_SOURCES = [
-  { name: "adsb.lol", base: "https://api.adsb.lol/v2" },
-  { name: "adsb.fi", base: "https://opendata.adsb.fi/api/v2" },
+  { name: "adsb.lol", kind: "point", base: "https://api.adsb.lol/v2" },
+  { name: "adsb.fi", kind: "point", base: "https://opendata.adsb.fi/api/v2" },
+  { name: "opensky", kind: "bbox", base: "https://opensky-network.org/api/states/all" },
 ];
 // Remember which wrapper (direct / proxy A / proxy B) last worked for each
 // source, and try that one first next time — cuts needless retries once we
@@ -262,17 +262,49 @@ function viewportRadiusNm() {
   return Math.min(Math.max(Math.round(raw), 5), state.radiusNm);
 }
 
-async function pollAircraft() {
+function buildAdsbUrl(src) {
+  if (src.kind === "bbox") {
+    const b = map.getBounds();
+    return `${src.base}?lamin=${b.getSouth()}&lomin=${b.getWest()}&lamax=${b.getNorth()}&lomax=${b.getEast()}`;
+  }
   const center = map.getCenter();
-  const [lat, lon] = [center.lat, center.lng];
   const radius = viewportRadiusNm();
+  return `${src.base}/lat/${center.lat}/lon/${center.lng}/dist/${radius}`;
+}
+
+// Normalize each source's own response shape into the common
+// {hex, lat, lon, track, flight, alt_baro, gs, squawk, t, r} shape upsertAircraft expects.
+function normalizeAircraft(src, data) {
+  if (src.kind === "bbox") {
+    // OpenSky: data.states is an array of fixed-position arrays, see
+    // https://openskynetwork.github.io/opensky-api/rest.html#response
+    const states = data.states || [];
+    return states
+      .map((s) => ({
+        hex: s[0],
+        flight: (s[1] || "").trim(),
+        lon: s[5],
+        lat: s[6],
+        alt_baro: s[7] != null ? Math.round(s[7] * 3.28084) : s[13] != null ? Math.round(s[13] * 3.28084) : null,
+        gs: s[9] != null ? Math.round(s[9] * 1.94384) : null,
+        track: s[10],
+        squawk: s[14] || null,
+        t: null,
+        r: null,
+      }))
+      .filter((ac) => ac.lat != null && ac.lon != null);
+  }
+  return data.ac || [];
+}
+
+async function pollAircraft() {
   let lastErr = null;
 
   for (const src of ADSB_SOURCES) {
-    const url = `${src.base}/lat/${lat}/lon/${lon}/dist/${radius}`;
+    const url = buildAdsbUrl(src);
     try {
       const data = await fetchJson(url, {}, src.name);
-      const list = data.ac || [];
+      const list = normalizeAircraft(src, data);
       const seen = new Set();
       for (const ac of list) {
         if (!ac.hex) continue;

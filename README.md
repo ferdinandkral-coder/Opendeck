@@ -29,6 +29,18 @@ viele ARINC-620-Labels sind Airline-/Avionik-spezifisch und nicht abgedeckt;
 unbekannte Codes zeigen einfach den Rohcode. Liste in `ACARS_LABELS` in
 `app.js`, bei Bedarf erweiterbar.
 
+## Drei ADS-B-Quellen, nacheinander
+
+`adsb.lol` und `adsb.fi` scheinen Cloud-IP-Bereiche (auch Cloudflare Workers)
+strenger zu limitieren/blocken als Heimnetz-IPs — im Debug-Log äußert sich
+das als 429/403 über den eigenen Proxy. Deshalb als dritte, unabhängige
+Quelle [OpenSky Network](https://openskynetwork.github.io/opensky-api/rest.html)
+ergänzt — ein akademisches Projekt der TU München, explizit für genau solche
+Hobby-Auswertungen gedacht, mit Bounding-Box-Abfrage statt Punkt+Radius (passt
+noch direkter zum "nach Kartenausschnitt laden"-Ansatz). Anonym ohne Key
+nutzbar, aber mit niedrigem Tageskontingent (~400 Requests/Tag) — sollte bei
+den aktuellen Poll-Intervallen reichen, aber nicht großzügig sein.
+
 ## Kartenausschnitt statt fixem Radius
 
 Flugzeuge werden nach dem sichtbaren Kartenausschnitt geladen, nicht nach
@@ -67,7 +79,10 @@ kostet im Cloudflare-Free-Tier nichts (100.000 Requests/Tag).
 gebaut und senden nicht immer CORS-Header für beliebige Browser-Origins. Die
 App versucht deshalb erst den direkten Request, und weicht bei einem
 Fehlschlag automatisch auf einen öffentlichen CORS-Proxy aus (`corsproxy.io`,
-danach `api.allorigins.win`), siehe `fetchJson()` in `app.js`.
+danach `corsproxy.io` als schnell scheiternder Notnagel), siehe `fetchJson()`
+in `app.js`. `allorigins.win` wurde nach Auswertung des Debug-Logs entfernt —
+hing dort bei jedem Versuch die vollen 7 Sekunden fest, statt schnell zu
+scheitern oder zu funktionieren.
 
 Das ist ein Workaround, kein Endzustand: öffentliche Proxys sind selbst
 rate-limitiert und nicht 100 % verfügbar. Für Dauerbetrieb lohnt sich später
@@ -79,7 +94,7 @@ dann fällt die Abhängigkeit von Drittanbieter-Proxys weg.
 
 | Daten     | Quelle                                    | Key nötig? |
 |-----------|--------------------------------------------|------------|
-| Position  | [adsb.lol](https://api.adsb.lol/docs)      | Nein       |
+| Position  | [adsb.lol](https://api.adsb.lol/docs) → [adsb.fi](https://adsb.fi) → [OpenSky Network](https://openskynetwork.github.io/opensky-api/rest.html) | Nein       |
 | ACARS     | [airframes.io](https://docs.airframes.io/api/) | Nein — Key optional, hebt nur das Rate-Limit an |
 
 Airframes.io lässt öffentliche Endpunkte auch anonym zu, nur mit niedrigerem
