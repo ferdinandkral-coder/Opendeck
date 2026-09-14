@@ -57,15 +57,19 @@ async function fetchJson(url, opts = {}, sourceName = url) {
   const keys = [...wrappers.keys()];
   const order = keys.slice(startIdx % keys.length).concat(keys.slice(0, startIdx % keys.length));
   for (const idx of order) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 7000);
     try {
-      const res = await fetch(wrappers[idx](url), opts);
+      const res = await fetch(wrappers[idx](url), { ...opts, signal: controller.signal });
       if (res.status === 429) throw Object.assign(new Error("HTTP 429"), { rateLimited: true });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       stickyWrapper.set(sourceName, idx);
       return json;
     } catch (err) {
-      lastErr = err;
+      lastErr = err.name === "AbortError" ? new Error("Zeitüberschreitung (7s)") : err;
+    } finally {
+      clearTimeout(timeout);
     }
   }
   throw lastErr;
