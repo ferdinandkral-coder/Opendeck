@@ -185,7 +185,10 @@ function airlineColor(flight) {
   return `hsl(${hash}, 70%, 58%)`;
 }
 
-const PLANE_PATH = `<path fill="currentColor" d="M12 2 L15 11 L22 14 L15 15.5 L14 22 L12 19 L10 22 L9 15.5 L2 14 L9 11 Z"/>`;
+// Jet silhouette (swept wings) — narrowbody & heavy, heavy just rendered bigger.
+const JET_PATH = `<path fill="currentColor" d="M12 1 L13.2 7 L22 15 L22 17.2 L13 14 L13.5 20 L17 22.5 L17 23.5 L12 22.3 L7 23.5 L7 22.5 L10.5 20 L11 14 L2 17.2 L2 15 L10.8 7 Z"/>`;
+// Prop-plane silhouette (straighter, less swept wings) — regional & GA, GA just smaller.
+const PROP_PATH = `<path fill="currentColor" d="M12 2 L12.8 8 L21 11 L21 13 L13 12 L13 19 L16 21.5 L16 23 L12 21.8 L8 23 L8 21.5 L11 19 L11 12 L3 13 L3 11 L11.2 8 Z"/>`;
 const HELI_SHAPE = `
   <rect x="2" y="11" width="20" height="1.6" fill="currentColor"/>
   <rect x="11.2" y="4" width="1.6" height="16" fill="currentColor"/>
@@ -195,8 +198,9 @@ function planeIcon(ac, selected) {
   const track = ac.track || 0;
   const category = TYPE_CATEGORY(ac.t);
   const color = selected ? "var(--route)" : airlineColor(ac.flight) || "var(--own)";
-  const size = { heavy: 26, regional: 18, ga: 15, heli: 20, unknown: 22 }[category];
-  const shape = category === "heli" ? HELI_SHAPE : PLANE_PATH;
+  const size = { heavy: 27, regional: 18, ga: 15, heli: 20, unknown: 22 }[category];
+  const shape =
+    category === "heli" ? HELI_SHAPE : category === "regional" || category === "ga" ? PROP_PATH : JET_PATH;
   // Helicopter rotor cross shouldn't rotate with track like a fixed-wing heading would.
   const rotation = category === "heli" ? 0 : track;
   return L.divIcon({
@@ -413,6 +417,19 @@ function cleanAcarsText(raw) {
     .replace(/\s+/g, " ")
     .trim();
 }
+// Only accept genuine, non-empty strings — some VDL2 signaling frames carry
+// an `icao` field that's an object ({addr, type, ...}), not a plain string;
+// using it as-is would stringify to "[object Object]".
+function asStr(v) {
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+// A message with no decoded text isn't always a bug — raw VDL2 link-layer
+// frames (handshakes, signaling) genuinely carry no human-readable content.
+function textOrExplain(m) {
+  const text = cleanAcarsText(asStr(m.text) || asStr(m.message));
+  if (text) return text;
+  return "(kein Klartext — vermutlich ein VDL2-Signalisierungs-Frame ohne ACARS-Nachricht)";
+}
 
 // Group messages by aircraft instead of dumping a flat chronological list —
 // one card per aircraft, latest message up front, older ones tucked away.
@@ -420,7 +437,7 @@ const expandedAcarsGroups = new Set();
 function renderAcarsGroups(messages) {
   const groups = new Map();
   for (const m of messages) {
-    const key = m.tail || m.flight || m.callsign || m.icao || "—";
+    const key = asStr(m.tail) || asStr(m.flight) || asStr(m.callsign) || asStr(m.station_id) || "Unbekannt";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(m);
   }
@@ -433,7 +450,7 @@ function renderAcarsGroups(messages) {
       const msgs = groups.get(key);
       const latest = msgs[0];
       const friendly = labelName(latest.label);
-      const text = cleanAcarsText(latest.text || latest.message) || "(kein Text)";
+      const text = textOrExplain(latest);
       const extra = msgs.length - 1;
       const open = expandedAcarsGroups.has(key);
       const history = msgs
@@ -442,7 +459,7 @@ function renderAcarsGroups(messages) {
           const f = labelName(m.label);
           return `<div class="acars-group__hist">
             <span class="acars-group__hist-label">${escapeHtml(m.label || "")}${f ? " · " + escapeHtml(f) : ""}</span>
-            <div>${escapeHtml(cleanAcarsText(m.text || m.message) || "(kein Text)")}</div>
+            <div>${escapeHtml(textOrExplain(m))}</div>
           </div>`;
         })
         .join("");
