@@ -154,18 +154,60 @@ document.getElementById("btn-locate").addEventListener("click", () => {
 });
 
 // ---------------- aircraft glyph ----------------
-function planeIcon(track, selected) {
-  const color = selected ? "var(--route)" : "var(--own)";
+// Categorize by ICAO type code so different aircraft classes get a
+// visibly different silhouette, not just a uniform arrow for everyone.
+// Not exhaustive — unrecognized types fall back to the default narrowbody
+// shape, which is the most common case anyway.
+const TYPE_CATEGORY = (() => {
+  const heavy = new Set(["A388", "A359", "A35K", "B788", "B789", "B78X", "B744", "B748", "B772", "B773", "B77L", "B77W", "A333", "A332", "A339", "A343", "A346", "MD11"]);
+  const regional = new Set(["E170", "E175", "E190", "E195", "E75L", "E75S", "CRJ2", "CRJ7", "CRJ9", "CRJX", "AT72", "AT76", "AT75", "DH8D", "DHC8", "SF34", "J328"]);
+  const ga = new Set(["C172", "C182", "C206", "C210", "PA28", "PA34", "SR22", "SR20", "BE36", "M20P", "DA40", "DA42", "P28A", "C152"]);
+  const heli = new Set(["EC35", "EC45", "EC30", "EC20", "R44", "R66", "R22", "H125", "H145", "AS50", "AS55", "B06", "B407", "B429", "S76", "AW139", "AW109", "A109"]);
+  return (t) => {
+    if (!t) return "unknown";
+    const code = t.toUpperCase();
+    if (heli.has(code)) return "heli";
+    if (heavy.has(code)) return "heavy";
+    if (regional.has(code)) return "regional";
+    if (ga.has(code)) return "ga";
+    return "unknown"; // treated like narrowbody, the common case
+  };
+})();
+
+// Deterministic color per airline prefix (not real airline branding —
+// just a stable hue per 3-letter ICAO code so the same airline always
+// gets the same color across the session).
+function airlineColor(flight) {
+  const prefix = flight?.trim().slice(0, 3).toUpperCase();
+  if (!prefix || !/^[A-Z]{3}$/.test(prefix)) return null; // tail number, not an airline callsign
+  let hash = 0;
+  for (const c of prefix) hash = (hash * 31 + c.charCodeAt(0)) % 360;
+  return `hsl(${hash}, 70%, 58%)`;
+}
+
+const PLANE_PATH = `<path fill="currentColor" d="M12 2 L15 11 L22 14 L15 15.5 L14 22 L12 19 L10 22 L9 15.5 L2 14 L9 11 Z"/>`;
+const HELI_SHAPE = `
+  <rect x="2" y="11" width="20" height="1.6" fill="currentColor"/>
+  <rect x="11.2" y="4" width="1.6" height="16" fill="currentColor"/>
+  <circle cx="12" cy="12" r="3.4" fill="currentColor"/>`;
+
+function planeIcon(ac, selected) {
+  const track = ac.track || 0;
+  const category = TYPE_CATEGORY(ac.t);
+  const color = selected ? "var(--route)" : airlineColor(ac.flight) || "var(--own)";
+  const size = { heavy: 26, regional: 18, ga: 15, heli: 20, unknown: 22 }[category];
+  const shape = category === "heli" ? HELI_SHAPE : PLANE_PATH;
+  // Helicopter rotor cross shouldn't rotate with track like a fixed-wing heading would.
+  const rotation = category === "heli" ? 0 : track;
   return L.divIcon({
     className: "",
     html: `<svg class="ac-icon${selected ? " ac-icon--selected" : ""}"
-             width="22" height="22" viewBox="0 0 24 24"
-             style="transform:rotate(${track || 0}deg)">
-             <path fill="currentColor"
-               d="M12 2 L15 11 L22 14 L15 15.5 L14 22 L12 19 L10 22 L9 15.5 L2 14 L9 11 Z"/>
+             width="${size}" height="${size}" viewBox="0 0 24 24"
+             style="transform:rotate(${rotation}deg); color:${color};">
+             ${shape}
            </svg>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
 }
 
@@ -178,11 +220,12 @@ function upsertAircraft(ac) {
 
   if (existing) {
     existing.marker.setLatLng([ac.lat, ac.lon]);
-    existing.marker.setIcon(planeIcon(ac.track, selected));
+    existing.marker.setIcon(planeIcon(ac, selected));
     existing.data = ac;
+    existing.lastSeen = Date.now();
   } else {
     const marker = L.marker([ac.lat, ac.lon], {
-      icon: planeIcon(ac.track, selected),
+      icon: planeIcon(ac, selected),
     }).addTo(map);
     marker.on("click", () => selectAircraft(hex));
     marker.bindTooltip(label, {
@@ -191,7 +234,7 @@ function upsertAircraft(ac) {
       offset: [0, -10],
       className: "ac-icon__label",
     });
-    state.aircraft.set(hex, { marker, data: ac });
+    state.aircraft.set(hex, { marker, data: ac, lastSeen: Date.now() });
   }
 }
 
@@ -212,20 +255,28 @@ function selectAircraft(hex) {
 
   // repaint icons so the selected one highlights
   for (const [h, e] of state.aircraft) {
-    e.marker.setIcon(planeIcon(e.data.track, h === hex));
+    e.marker.setIcon(planeIcon(e.data, h === hex));
   }
 }
 
 document.getElementById("db-close").addEventListener("click", () => {
   document.getElementById("datablock").hidden = true;
   state.selectedHex = null;
-  for (const [, e] of state.aircraft) e.marker.setIcon(planeIcon(e.data.track, false));
+  for (const [, e] of state.aircraft) e.marker.setIcon(planeIcon(e.data, false));
 });
 
-// stale-aircraft cleanup: drop markers not refreshed in 2 poll cycles
-function pruneStale(seenHexes) {
+// Stale-aircraft cleanup: time-based, not per-cycle-membership-based.
+// adsb.lol and adsb.fi have different feeder coverage — whichever source
+// answers a given poll cycle may simply not report an aircraft the other
+// source did, even though it's still there. Pruning on "missing from THIS
+// cycle's list" made aircraft flicker in and out every time the active
+// source switched. Instead: only remove a marker after it hasn't been
+// reported by ANY source for a while.
+const STALE_MS = 45000;
+function pruneStale() {
+  const now = Date.now();
   for (const [hex, entry] of state.aircraft) {
-    if (!seenHexes.has(hex)) {
+    if (now - entry.lastSeen > STALE_MS) {
       map.removeLayer(entry.marker);
       state.aircraft.delete(hex);
     }
@@ -317,13 +368,11 @@ async function pollAircraft() {
     try {
       const data = await fetchJson(url, { headers }, src.name);
       const list = normalizeAircraft(src, data);
-      const seen = new Set();
       for (const ac of list) {
         if (!ac.hex) continue;
-        seen.add(ac.hex);
         upsertAircraft(ac);
       }
-      pruneStale(seen);
+      pruneStale();
       document.getElementById("stat-count").textContent = list.length;
       document.getElementById("stat-source").textContent = src.name;
       pollBackoff = POLL_BASE_MS; // reset backoff on success
@@ -334,6 +383,7 @@ async function pollAircraft() {
     }
   }
   // every source failed — back off so we don't hammer dead endpoints
+  pruneStale();
   document.getElementById("stat-source").textContent = "offline";
   pollBackoff = Math.min(pollBackoff * 2, POLL_MAX_MS);
   showBanner(`Keine ADS-B-Quelle erreichbar (${lastErr?.message || "unbekannter Fehler"}). Details: 🐞 Debug-Log.`);

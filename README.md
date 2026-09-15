@@ -47,6 +47,21 @@ Alle drei blockten in Tests konsequent Cloudflares IP-Bereich (429/403/Timeout)
 IP-Block umgeht, ist nicht garantiert, aber der naheliegendste nächste
 Versuch.
 
+## Flugzeug-Icons & Marker-Stabilität
+
+Icons unterscheiden sich jetzt nach Typ (Heavy/Regional/GA/Helikopter, Rest
+als Standard-Schmalrumpf-Silhouette) und Airline (Farbe aus einem Hash des
+3-Buchstaben-Rufzeichen-Präfix — keine echten Airline-Farben/Logos, nur pro
+Airline konsistent). Mapping in `TYPE_CATEGORY`/`airlineColor()` in `app.js`,
+bei Bedarf erweiterbar.
+
+Marker wurden vorher sofort entfernt, wenn ein Flugzeug in der aktuellen
+Poll-Antwort fehlte — das flackerte stark, weil `adsb.lol` und `adsb.fi`
+unterschiedliche Feeder-Abdeckung haben und bei jedem Quellenwechsel
+unterschiedliche Flugzeuglisten liefern. Jetzt zeitbasiert: ein Marker
+verschwindet erst, wenn er 45 Sekunden lang von **keiner** Quelle gemeldet
+wurde.
+
 ## Kartenausschnitt statt fixem Radius
 
 Flugzeuge werden nach dem sichtbaren Kartenausschnitt geladen, nicht nach
