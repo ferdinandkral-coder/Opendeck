@@ -478,7 +478,7 @@ function renderAcarsGroups(messages) {
       return `
         <li class="scratchpad__msg acars-group" data-key="${escapeHtml(key)}">
           <div class="acars-group__head">
-            <button class="acars-group__locate" type="button" title="Auf Karte zeigen">📍</button>
+            ${key !== "Unbekannt" ? `<button class="acars-group__locate" type="button" title="Auf Karte zeigen">📍</button>` : ""}
             <span class="acars-group__ac">${escapeHtml(key)}</span>
             <span class="acars-group__label">${escapeHtml(friendly || latest.label || "—")}</span>
             ${extra > 0 ? `<span class="acars-group__count">+${extra}</span>` : ""}
@@ -549,7 +549,7 @@ document.getElementById("acars-list").addEventListener("click", (e) => {
 
   if (e.target.closest(".acars-group__locate")) {
     const found = locateAircraftByKey(li.dataset.key);
-    if (!found) showBanner(`${li.dataset.key} ist aktuell nicht in den ADS-B-Live-Daten sichtbar.`);
+    if (!found) showBanner(`${li.dataset.key} aktuell nicht im ADS-B-Suchradius (${state.radiusNm} NM) — ACARS empfängt oft aus größerer Entfernung als ADS-B reicht.`);
     return;
   }
 
