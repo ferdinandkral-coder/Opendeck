@@ -166,6 +166,12 @@ body{
   all:unset; display:flex; align-items:center; gap:8px;
   width:100%; cursor:pointer; color:var(--text);
 }
+.acars-group__locate{
+  all:unset; cursor:pointer;
+  font-size:13px; line-height:1; padding:2px;
+  flex-shrink:0;
+}
+.acars-group__locate:active{opacity:.6;}
 .acars-group__ac{color:var(--caution); font-weight:700; font-size:12px;}
 .acars-group__label{color:var(--text-dim); font-size:10.5px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .acars-group__count{

@@ -185,10 +185,22 @@ function airlineColor(flight) {
   return `hsl(${hash}, 70%, 58%)`;
 }
 
-// Jet silhouette (swept wings) — narrowbody & heavy, heavy just rendered bigger.
-const JET_PATH = `<path fill="currentColor" d="M12 1 L13.2 7 L22 15 L22 17.2 L13 14 L13.5 20 L17 22.5 L17 23.5 L12 22.3 L7 23.5 L7 22.5 L10.5 20 L11 14 L2 17.2 L2 15 L10.8 7 Z"/>`;
-// Prop-plane silhouette (straighter, less swept wings) — regional & GA, GA just smaller.
-const PROP_PATH = `<path fill="currentColor" d="M12 2 L12.8 8 L21 11 L21 13 L13 12 L13 19 L16 21.5 L16 23 L12 21.8 L8 23 L8 21.5 L11 19 L11 12 L3 13 L3 11 L11.2 8 Z"/>`;
+// Jet silhouette: thin fuselage + swept-back wing chevrons + small tailplane.
+const JET_SHAPE = `<g fill="currentColor">
+  <rect x="11.3" y="1.5" width="1.4" height="20.5" rx="0.7"/>
+  <polygon points="12,7.5 22,15.5 22,17.2 12,13"/>
+  <polygon points="12,7.5 2,15.5 2,17.2 12,13"/>
+  <polygon points="12,17 16.5,21.5 16.5,22.8 12,20.3"/>
+  <polygon points="12,17 7.5,21.5 7.5,22.8 12,20.3"/>
+</g>`;
+// Prop-plane silhouette: same fuselage, but straight (unswept) high wing —
+// reads as a small propeller aircraft rather than a jet.
+const PROP_SHAPE = `<g fill="currentColor">
+  <rect x="11.3" y="2" width="1.4" height="19" rx="0.7"/>
+  <rect x="2" y="9.5" width="20" height="1.8" rx="0.4"/>
+  <polygon points="12,17 15.3,21 15.3,22.2 12,20"/>
+  <polygon points="12,17 8.7,21 8.7,22.2 12,20"/>
+</g>`;
 const HELI_SHAPE = `
   <rect x="2" y="11" width="20" height="1.6" fill="currentColor"/>
   <rect x="11.2" y="4" width="1.6" height="16" fill="currentColor"/>
@@ -200,7 +212,7 @@ function planeIcon(ac, selected) {
   const color = selected ? "var(--route)" : airlineColor(ac.flight) || "var(--own)";
   const size = { heavy: 27, regional: 18, ga: 15, heli: 20, unknown: 22 }[category];
   const shape =
-    category === "heli" ? HELI_SHAPE : category === "regional" || category === "ga" ? PROP_PATH : JET_PATH;
+    category === "heli" ? HELI_SHAPE : category === "regional" || category === "ga" ? PROP_SHAPE : JET_SHAPE;
   // Helicopter rotor cross shouldn't rotate with track like a fixed-wing heading would.
   const rotation = category === "heli" ? 0 : track;
   return L.divIcon({
@@ -465,11 +477,12 @@ function renderAcarsGroups(messages) {
         .join("");
       return `
         <li class="scratchpad__msg acars-group" data-key="${escapeHtml(key)}">
-          <button class="acars-group__head" type="button">
+          <div class="acars-group__head">
+            <button class="acars-group__locate" type="button" title="Auf Karte zeigen">📍</button>
             <span class="acars-group__ac">${escapeHtml(key)}</span>
             <span class="acars-group__label">${escapeHtml(friendly || latest.label || "—")}</span>
             ${extra > 0 ? `<span class="acars-group__count">+${extra}</span>` : ""}
-          </button>
+          </div>
           <div class="acars-group__latest">${escapeHtml(text)}</div>
           ${extra > 0 ? `<div class="acars-group__history" ${open ? "" : "hidden"}>${history}</div>` : ""}
         </li>`;
@@ -511,11 +524,37 @@ async function pollAcars() {
   }
 }
 
-// Expand/collapse a group's older messages — delegated so it survives re-renders.
+// Find a currently-tracked aircraft by callsign or registration and center
+// the map on it, opening its datablock — the link between an ACARS message
+// and the ADS-B position it belongs to.
+function locateAircraftByKey(key) {
+  const norm = (s) => (s || "").trim().toUpperCase();
+  const target = norm(key);
+  for (const [hex, entry] of state.aircraft) {
+    if (norm(entry.data.flight) === target || norm(entry.data.r) === target) {
+      map.setView([entry.data.lat, entry.data.lon], Math.max(map.getZoom(), 10));
+      selectAircraft(hex);
+      scratchpad.classList.remove("scratchpad--open");
+      return true;
+    }
+  }
+  return false;
+}
+
+// Expand/collapse a group's older messages, or locate it on the map —
+// delegated so it survives re-renders.
 document.getElementById("acars-list").addEventListener("click", (e) => {
+  const li = e.target.closest(".acars-group");
+  if (!li) return;
+
+  if (e.target.closest(".acars-group__locate")) {
+    const found = locateAircraftByKey(li.dataset.key);
+    if (!found) showBanner(`${li.dataset.key} ist aktuell nicht in den ADS-B-Live-Daten sichtbar.`);
+    return;
+  }
+
   const head = e.target.closest(".acars-group__head");
   if (!head) return;
-  const li = head.closest(".acars-group");
   const hist = li.querySelector(".acars-group__history");
   if (!hist) return;
   const willOpen = hist.hidden;
